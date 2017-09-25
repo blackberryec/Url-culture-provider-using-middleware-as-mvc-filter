@@ -7,6 +7,10 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System.Globalization;
+using Microsoft.AspNetCore.Localization;
+using Microsoft.AspNetCore.Localization.Routing;
+using Microsoft.AspNetCore.Mvc;
 
 namespace WebApplication1
 {
@@ -28,7 +32,36 @@ namespace WebApplication1
         public void ConfigureServices(IServiceCollection services)
         {
             // Add framework services.
-            services.AddMvc();
+            services.AddMvc(opts =>
+            {
+                opts.Conventions.Insert(0, new LocalizationConvention());
+                opts.Filters.Add(new MiddlewareFilterAttribute(typeof(LocalizationPipeline)));
+            });
+
+            var supportedCultures = new[]
+            {
+                new CultureInfo("en-US"),
+                new CultureInfo("en-GB"),
+                new CultureInfo("de"),
+                new CultureInfo("fr-FR"),
+            };
+
+            var options = new RequestLocalizationOptions()
+            {
+                DefaultRequestCulture = new RequestCulture(culture: "en-GB", uiCulture: "en-GB"),
+                SupportedCultures = supportedCultures,
+                SupportedUICultures = supportedCultures
+            };
+            options.RequestCultureProviders = new[]
+            {
+            new RouteDataRequestCultureProvider()
+                {
+                    RouteDataStringKey = "culture",
+                    Options = options
+                }
+             };
+
+            services.AddSingleton(options);
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -53,7 +86,7 @@ namespace WebApplication1
             {
                 routes.MapRoute(
                     name: "default",
-                    template: "{controller=Home}/{action=Index}/{id?}");
+                    template: "{culture}/{controller=Home}/{action=Index}/{id?}");
             });
         }
     }
