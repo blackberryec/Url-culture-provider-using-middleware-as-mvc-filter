@@ -1,16 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Builder;
+﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Localization;
+using Microsoft.AspNetCore.Localization.Routing;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Globalization;
-using Microsoft.AspNetCore.Localization;
-using Microsoft.AspNetCore.Localization.Routing;
-using Microsoft.AspNetCore.Mvc;
+using System.Threading.Tasks;
 
 namespace WebApplication1
 {
@@ -48,7 +47,7 @@ namespace WebApplication1
 
             var options = new RequestLocalizationOptions()
             {
-                DefaultRequestCulture = new RequestCulture(culture: "en-GB", uiCulture: "en-GB"),
+                DefaultRequestCulture = new RequestCulture(culture: "en-US", uiCulture: "en-US"),
                 SupportedCultures = supportedCultures,
                 SupportedUICultures = supportedCultures
             };
@@ -62,10 +61,12 @@ namespace WebApplication1
              };
 
             services.AddSingleton(options);
+            services.Configure<RouteOptions>(opts =>
+             opts.ConstraintMap.Add("culturecode", typeof(CultureRouteConstraint)));
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env, ILoggerFactory loggerFactory)
+        public void Configure(IApplicationBuilder app, RequestLocalizationOptions localizationOptions, IHostingEnvironment env, ILoggerFactory loggerFactory)
         {
             loggerFactory.AddConsole(Configuration.GetSection("Logging"));
             loggerFactory.AddDebug();
@@ -86,7 +87,16 @@ namespace WebApplication1
             {
                 routes.MapRoute(
                     name: "default",
-                    template: "{culture}/{controller=Home}/{action=Index}/{id?}");
+                    template: "{culture:culturecode}/{controller=Home}/{action=Index}/{id?}");
+                routes.MapGet("{culture:culturecode}/{*path}", appBuilder => { });
+                routes.MapGet("{*path}", (RequestDelegate)(ctx =>
+                {
+                    var defaultCulture = localizationOptions.DefaultRequestCulture.Culture.Name;
+                    var path = ctx.GetRouteValue("path") ?? string.Empty;
+                    var culturedPath = $"/{defaultCulture}/{path}";
+                    ctx.Response.Redirect(culturedPath);
+                    return Task.CompletedTask;
+                }));
             });
         }
     }
